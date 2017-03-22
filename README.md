@@ -16,7 +16,7 @@ First install woodlets cli via [Node Package Manager (npm)](https://www.npmjs.co
 ```
 npm install -g woodlets-cli
 ```
-To create a new Woodlets theme in a fresh WordPress installation run:
+To create a new Woodlets theme and a fresh WordPress installation run:
 ```
 woodlets create
 ```
@@ -26,7 +26,7 @@ woodlets init
 ```
 *You should run ```woodlets init``` only in empty directories.*
 
-For more information what's possible with run:
+For more information what's possible with woodlets cli run:
 ```
 woodlets help
 ```
