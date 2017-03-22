@@ -8,6 +8,10 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Neochic/Woodlets-CLI.git"
+  },
   "author": "Neochic GmbH <info@neochic.de> (http://www.neochic.de/)",
   "license": "MIT",
   "dependencies": {
