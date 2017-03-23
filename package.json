@@ -1,6 +1,6 @@
 {
   "name": "woodlets-cli",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "CLI tool for creating WordPress themes based on the Woodlets plugin.",
   "bin": {
     "woodlets": "./src/commands/woodlets.js"
