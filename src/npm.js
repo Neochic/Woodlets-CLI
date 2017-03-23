@@ -6,7 +6,7 @@ var install = function() {
     var subject = new rxjs.ReplaySubject(1);
 
     console.log(chalk.blue('Installing NPM dependencies...'));
-    var npm = spawn('npm', ['install']);
+    var npm = process.platform.startsWith('win') ? spawn('cmd', ['/c', 'npm', 'install']) : spawn('npm', ['install']);
     npm.on('error', function(err) {
         console.log(chalk.red(err));
     });
