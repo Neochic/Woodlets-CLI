@@ -62,16 +62,11 @@ var getName = function () {
 };
 
 var installDependencies = function () {
-    return Seed.download()
-        .flatMap(function () {
-            return WordPress.download();
-        })
-        .flatMap(function () {
-            return Composer.install();
-        })
-        .flatMap(function () {
-            return Npm.install();
-        });
+    return WordPress.download().flatMap(function() {
+        return Composer.install();
+    }).flatMap(function () {
+        return Npm.install();
+    });
 };
 
 var createThemeDirectory = function (name) {
@@ -120,10 +115,10 @@ var waitForWPConfig = function () {
     return subject;
 };
 
-var setupGuidance = function () {
+var setupGuidance = function (dontUseDocker) {
     var dockerPort = null;
     return Docker.isDockerAvailable().flatMap(function (useDocker) {
-        if (useDocker) {
+        if (useDocker && !dontUseDocker) {
             return Docker.start().flatMap(function () {
                 return Docker.getPort();
             }).map(function (port) {
@@ -139,7 +134,13 @@ var setupGuidance = function () {
         if (dockerPort) {
             var url = `http://localhost:${dockerPort}`;
             console.log(chalk.cyan(`Open ${url} in your browser and run through WordPress setup.`));
-            console.log(chalk.cyan(`Use "admin" for DB username and password and "mysql" as host.`));
+            console.log("");
+            console.log(chalk.cyan(`Values for database configuration:`));
+            console.log(chalk.cyan(`==================================`));
+            console.log(chalk.cyan(`Database Name: wordpress`));
+            console.log(chalk.cyan(`Username: admin`));
+            console.log(chalk.cyan(`Password: admin`));
+            console.log(chalk.cyan(`Database Host: mysql`));
             return wpConfigSubject;
         }
 
@@ -155,9 +156,35 @@ var setupGuidance = function () {
     });
 };
 
+var createEnvironment = function(themeName, dontUseDocker) {
+    var dockerPort = null;
+
+    return installDependencies().flatMap(function () {
+        return ThemeLink.link(process.cwd() + '/src', process.cwd() + '/public/wp-content/themes/' + themeName)
+    }).flatMap(function () {
+        return FileEditor.replace('src/style.less', /^(\s*Theme Name:\s*).*$/gm, '$1' + themeName);
+    }).flatMap(function () {
+        return Webpack.compile(process.cwd());
+    }).flatMap(function () {
+        return setupGuidance(dontUseDocker);
+    }).flatMap(function (port) {
+        dockerPort = port;
+        return wpDebugMode();
+    }).flatMap(function () {
+        var hint = chalk.blue(`Woodlets theme is created successfully.\n`);
+        hint += chalk.cyan(`Please activate your new theme in the WordPress Backend.\n`);
+        hint += chalk.cyan(`Notice: Don't forget to install the Woodlets plugin via the admin notice.\n`);
+        if (dockerPort) {
+            hint += chalk.cyan(`Next time you can start developing your project with "woodlets serve" command in the project directory.`);
+        } else {
+            hint += chalk.cyan(`Next time you can start developing your project with "woodlets watch" command in the project directory.`);
+        }
+        return Webpack.watch(process.cwd(), hint);
+    });
+};
+
 var init = function (create) {
     var themeName = null;
-    var dockerPort = null;
 
     program
         .arguments('[name]')
@@ -169,35 +196,36 @@ var init = function (create) {
              process.chdir(createThemeDirectory(name));
         }
 
-        return installDependencies();
+        return Seed.download();
     }).flatMap(function () {
         var config = Config.getProjectConfig();
         config.name = themeName;
         Config.setProjectConfig(config);
-        return ThemeLink.link(process.cwd() + '/src', process.cwd() + '/public/wp-content/themes/' + themeName);
-    }).flatMap(function () {
-        return FileEditor.replace('src/style.less', /^(\s*Theme Name:\s*).*$/gm, '$1' + themeName);
-    }).flatMap(function () {
-        return Webpack.compile(process.cwd());
-    }).flatMap(function () {
-        return setupGuidance();
-    }).flatMap(function (port) {
-        dockerPort = port;
-        return wpDebugMode();
-    }).subscribe(function () {
-        var hint = chalk.blue(`Woodlets theme is created successfully.\n`);
-        hint += chalk.cyan(`Please activate your new theme in the WordPress Backend.\n`);
-        hint += chalk.cyan(`Notice: Don't forget to install the Woodlets plugin via the admin notice.\n`);
-        if (dockerPort) {
-            hint += chalk.cyan(`Next time you can start developing your project with "woodlets serve" command in the project directory.`);
-        } else {
-            hint += chalk.cyan(`Next time you can start developing your project with "woodlets watch" command in the project directory.`);
-        }
-        Webpack.watch(process.cwd(), hint);
-    }, function (error) {
+        return createEnvironment(themeName);
+    }).subscribe(void 0 , function (error) {
         console.log(chalk.red(error));
         process.exit(1);
     });
+};
+
+var reinit = function(dontUseDocker) {
+    if(fs.existsSync('public')) {
+        return false;
+    }
+
+    var config = Config.getProjectConfig();
+    if(!config.name) {
+        console.log(chalk.red(`Error: It doesn't seem to be a Woodlets project. There is no "woodlets-cli.json" or it doesn't contain the project name.`));
+        process.exit(1);
+    }
+
+    console.log(chalk.blue('No WordPress found. Reinitializing...'));
+    createEnvironment(config.name, dontUseDocker).subscribe(void 0, function (error) {
+        console.log(chalk.red(error));
+        process.exit(1);
+    });
+
+    return true;
 };
 
 var create = function () {
@@ -205,23 +233,27 @@ var create = function () {
 };
 
 var watch = function () {
-    return Webpack.watch(process.cwd());
+    if(!reinit(true)) {
+        return Webpack.watch(process.cwd());
+    }
 };
 
 var serve = function () {
-    Docker.isDockerAvailable().flatMap(function (useDocker) {
-        if (useDocker) {
-            return Docker.start().flatMap(function () {
-                return watch();
-            });
-        }
+    if(!reinit()) {
+        Docker.isDockerAvailable().flatMap(function (useDocker) {
+            if (useDocker) {
+                return Docker.start().flatMap(function () {
+                    return watch();
+                });
+            }
 
-        console.log(chalk.yellow(`Warning: docker-compose is not available. Falling back to "woodlets watch".`));
-        return watch();
-    }).subscribe(void 0, function (error) {
-        console.log(chalk.red(error));
-        process.exit(1);
-    });
+            console.log(chalk.yellow(`Warning: docker-compose is not available. Falling back to "woodlets watch".`));
+            return watch();
+        }).subscribe(void 0, function (error) {
+            console.log(chalk.red(error));
+            process.exit(1);
+        });
+    }
 };
 
 var build = function () {
