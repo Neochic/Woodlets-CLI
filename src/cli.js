@@ -233,8 +233,12 @@ var create = function () {
 };
 
 var watch = function () {
+    program
+        .option('-p, --production', 'Makes a production build')
+        .parse(process.argv);
+
     if(!reinit(true)) {
-        return Webpack.watch(process.cwd());
+        return Webpack.watch(process.cwd(), void 0, program.production);
     }
 };
 
@@ -259,13 +263,14 @@ var serve = function () {
 var build = function () {
     program
         .option('-w, --watch', 'Watches for changes to rebuild')
+        .option('-p, --production', 'Makes a production build')
         .parse(process.argv);
 
     if (program.watch) {
         watch();
         return;
     }
-    Webpack.compile(process.cwd());
+    Webpack.compile(process.cwd(), program.production);
 };
 
 module.exports = {
